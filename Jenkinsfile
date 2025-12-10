@@ -1,28 +1,37 @@
 pipeline {
     agent any
-    
+
     tools {
-        jdk 'jdk17'
-        maven 'maven3'
+        jdk 'java 17'
+        maven 'maven3.6'
     }
-    
-    stages {   
+
+    stages {
         stage('Compile') {
             steps {
-            sh 'mvn compile'
+                sh 'mvn clean compile'
             }
         }
-        
-        stage('Test') {
+
+        stage('Run Tests') {
             steps {
                 sh 'mvn test'
             }
         }
-        
-        stage('Build') {
+
+        stage('Package Application') {
             steps {
                 sh 'mvn package'
             }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Build and packaging completed successfully!'
+        }
+        failure {
+            echo 'Build failed. Check the logs.'
         }
     }
 }
