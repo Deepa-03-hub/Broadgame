@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+        
+    tools {
+        jdk 'JDK-11'
+        maven 'Maven'
+    }
+    environment {
+        SCANNER_HOME= tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Deepa-03-hub/Broadgame.git'
+            }
+        }
+        stage('Compile') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'mvn clean test'
+            }
+        }
+        
+        stage('sonarqube analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=broadgame  -Dsonar.projectKey=broadgame'''
+                }
+                
+                }
+            }
+        
+        stage('Package') {
+            steps {
+                sh 'mvn clean compile install'
+            }
+        }
+        stage('Docker Build') {
+            steps {
+                sh 'docker build -t myapp:${BUILD_NUMBER} .'
+            }
+        }
+        stage('Docker Tag') {
+            steps {
+                sh 'docker tag myapp:${BUILD_NUMBER} deepahub54321/deepa:${BUILD_NUMBER}'
+            }
+        }
+            stage('Docker Login & Push') {
+                steps {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-creds',  
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                          set -e
+                          echo "Logging in to Docker Hub as ${DOCKER_USER}..."
+                          docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
+            
+                          echo "Tagging image for Docker Hub..."
+                          docker tag myapp:${BUILD_NUMBER} deepahub54321/deepa:${BUILD_NUMBER}
+            
+                          echo "Pushing image to Docker Hub..."
+                          docker push deepahub54321/deepa:${BUILD_NUMBER}
+                        '''
+                }
+            }
+        }
+        stage('kubernetes deployement') {
+            steps {
+               withKubeConfig(caCertificate: '', clusterName: 'kubernetes', contextName: '', credentialsId: 'Kubernetes-token', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://172.31.8.147:6443') {
+                  sh "kubectl apply -f deployment-service.yaml"
+            }
+            
+        }
+            }
+    }
+} 
